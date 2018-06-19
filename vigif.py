@@ -66,9 +66,10 @@ def convert_inner(path):
 
 
 def convert(path):
+    # noinspection PyBroadException
     try:
         return convert_inner(path)
-    except Exception as err:
+    except Exception:
         logging.error("Error converting %s", path, exc_info=True)
 
 
@@ -88,5 +89,5 @@ def main():
         sys.exit(1)
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     main()
