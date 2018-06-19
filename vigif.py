@@ -63,6 +63,12 @@ def convert_inner(path):
 
     if preset['fps']:
         conversion.append('fps={fps}'.format(**preset))
+    if preset.keys() & {'crop_left', 'crop_right', 'crop_top', 'crop_bottom'}:
+        conversion.append('crop=in_w*{}:in_h*{}:in_w*{}:in_h*{}'
+                          .format(1 - (preset['crop_left'] + preset['crop_right'])/100,
+                                  1 - (preset['crop_top'] + preset['crop_bottom'])/100,
+                                  preset['crop_left']/100,
+                                  preset['crop_top']/100))
     if preset['scale']:
         # Doc: https://trac.ffmpeg.org/wiki/Scaling
         conversion.append("scale='min(iw,{scale})':'min(ih,{scale})':"
@@ -136,6 +142,10 @@ parser.add_argument('--dither', default='sierra2_4a',
                     help='dithering algorithm: none, bayer, floyd_steinberg, sierra2, sierra2_4a')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
+parser.add_argument('--crop-left',   default=0, type=float, help='crop percentage from left side')
+parser.add_argument('--crop-right',  default=0, type=float, help='crop percentage from right side')
+parser.add_argument('--crop-top',    default=0, type=float, help='crop percentage from top')
+parser.add_argument('--crop-bottom', default=0, type=float, help='crop percentage from bottom')
 parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
 
