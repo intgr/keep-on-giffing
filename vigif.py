@@ -44,7 +44,7 @@ def convert_inner(path):
     if exists(out_path):
         print("WARN: Overwriting %s" % out_path)
 
-    print("Generating palette for %s..." % filename)
+    print("Converting %s to %s..." % (filename, basename(out_path)))
     with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
         conversion = 'fps=10,scale=640:-1:flags=lanczos'
         palettegen = 'palettegen=max_colors=90:stats_mode=diff'
@@ -55,29 +55,37 @@ def convert_inner(path):
                     '-vf', conversion + ',' + palettegen,
                     palette.name])
 
-        print("Converting %s to %s..." % (filename, basename(out_path)))
         check_call(['ffmpeg', '-y',
                     '-loglevel', '31',
                     '-i', path, '-i', palette.name,
                     '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
                     out_path])
-    print("Completed %s: %s" % (basename(out_path), pretty_size(getsize(out_path))))
+
+    print("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
+    return True
 
 
 def convert(path):
     try:
-        convert_inner(path)
+        return convert_inner(path)
     except Exception as err:
         logging.error("Error converting %s", path, exc_info=True)
 
 
 def main():
+    files = sys.argv[1:]
+
     parallel = len(os.sched_getaffinity(0))
     with ThreadPoolExecutor(parallel) as executor:
-        for path in sys.argv[1:]:
-            executor.submit(convert, path)
-
+        results = list(executor.map(convert, files))
         executor.shutdown()
+
+    success = results.count(True)
+    if len(files) > 1:
+        print("Converted %d files (%d skips/failures)" % (success, len(files) - success))
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__=='__main__':
