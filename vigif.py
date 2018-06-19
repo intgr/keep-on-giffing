@@ -14,7 +14,7 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize
-from subprocess import check_call
+from subprocess import check_call, CalledProcessError
 from tempfile import NamedTemporaryFile
 
 
@@ -96,7 +96,7 @@ def convert_inner(path):
                     out_path])
 
     print("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
-    return True
+    return out_path
 
 
 def convert(path):
@@ -105,6 +105,7 @@ def convert(path):
         return convert_inner(path)
     except Exception:
         logging.error("Error converting %s", path, exc_info=True)
+        return None
 
 
 def optional(type):
@@ -124,7 +125,7 @@ parser.add_argument('-l', '--length', default='10', type=optional(str),
                     help='length of output in seconds. Pass "max" to disable.')
 parser.add_argument('-f', '--fps', default=20, type=optional(float),
                     help='frames per second. Pass "max" to disable')
-parser.add_argument('-p', '--scale', default=500, type=optional(int),
+parser.add_argument('-d', '--scale', default=500, type=optional(int),
                     help='maximum dimensions of output. Pass "max" to disable. '
                          'Aspect ratio is always kept and will never be upscaled.')
 parser.add_argument('-c', '--colors', default=128, type=int,
@@ -133,6 +134,8 @@ parser.add_argument('--no-palette-diff', default=True, dest='palette_diff', acti
                     help='generate palette based on differences only')
 parser.add_argument('--dither', default='sierra2_4a',
                     help='dithering algorithm: none, bayer, floyd_steinberg, sierra2, sierra2_4a')
+parser.add_argument('-p', '--play', default=False, action='store_true',
+                    help='play files after conversion')
 parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
 
@@ -145,14 +148,21 @@ def main():
 
     parallel = len(os.sched_getaffinity(0))
     with ThreadPoolExecutor(parallel) as executor:
-        results = list(executor.map(convert, args.files))
+        outputs = [f for f in executor.map(convert, args.files) if f is not None]
         executor.shutdown()
 
-    success = results.count(True)
     if len(args.files) > 1:
-        print("Converted %d files (%d skips/failures)" % (success, len(args.files) - success))
+        print("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
 
-    if not success:
+    if outputs:
+        print("")
+        try:
+            check_call(['mpv', '--loop-file', '--', *outputs])
+        except CalledProcessError as err:
+            print("Error playing: %s" % err)
+
+    if not outputs:
+        # Unsuccessful
         sys.exit(1)
 
 
