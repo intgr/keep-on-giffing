@@ -6,12 +6,27 @@ See https://superuser.com/a/556031
 * Keep calm and gif on!
 """
 import logging
+import math
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from os.path import basename, splitext, isfile, exists
+from os.path import basename, splitext, isfile, exists, getsize
 from subprocess import check_call
 from tempfile import NamedTemporaryFile
+
+
+def pretty_size(value):
+    """Convert a number of bytes into a human-readable string, with 4 significant digits.
+    Output is 2...5 characters. Values >= 1000 always produce output in form: x.xxxU, xx.xxU, xxxU, xxxxU.
+    """
+    exp = int(math.log(value, 1024)) if value > 0 else 0
+    unit = 'bkMGTPEZY'[exp]
+    if exp == 0:
+        return '%d%s' % (value, unit)       # value < 1024, result is always without fractions
+
+    unit_value = value / (1024.0 ** exp)    # value in the relevant units
+    places = int(math.log(unit_value, 10))  # number of digits before decimal point
+    return '%.*f%s' % (2 - places, unit_value, unit)
 
 
 def convert_inner(path):
@@ -46,7 +61,7 @@ def convert_inner(path):
                     '-i', path, '-i', palette.name,
                     '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
                     out_path])
-    print("Completed %s..." % basename(out_path))
+    print("Completed %s: %s" % (basename(out_path), pretty_size(getsize(out_path))))
 
 
 def convert(path):
