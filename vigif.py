@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 """
-See https://superuser.com/a/556031
+See:
+https://superuser.com/a/556031
+http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html
 
 * The giftool that keeps on giffing!
 * Keep calm and gif on!
@@ -29,6 +31,17 @@ def pretty_size(value):
     return '%.*f%s' % (2 - places, unit_value, unit)
 
 
+preset = {
+    'start': 0.0,
+    'length': 10.0,
+    'fps': 20,
+    'scale': 640,
+    'colors': 256,
+    'palette_diff': True,
+    'dither': 'sierra2_4a',
+}
+
+
 def convert_inner(path):
     filename = basename(path)
     out_path = splitext(filename)[0] + '.gif'
@@ -44,19 +57,47 @@ def convert_inner(path):
     if exists(out_path):
         print("WARN: Overwriting %s" % out_path)
 
+    cmd = 'ffmpeg', '-y', '-loglevel', '31'
+
+    # Cut ####
+    if preset['start']:
+        cmd += '-ss', str(preset['start'])
+    if preset['length']:
+        cmd += '-t', str(preset['length'])
+
+    # Conversion ####
+    conversion = []
+
+    if preset['fps']:
+        conversion.append('fps={fps}'.format(**preset))
+    if preset['scale']:
+        # Doc: https://trac.ffmpeg.org/wiki/Scaling
+        conversion.append("scale='min(iw,{scale})':'min(ih,{scale})':"
+                          "force_original_aspect_ratio=decrease:flags=lanczos"
+                          .format(**preset))
+
+    conversion = ','.join(conversion)
+
+    # Palettegen ####
+    # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
+    palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**preset)
+    if preset['palette_diff']:
+        palettegen += ':stats_mode=diff'
+
+    # Paletteuse ####
+    # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
+    paletteuse = 'paletteuse'
+    if preset['dither']:
+        paletteuse += '=dither={dither}'.format(**preset)
+
     print("Converting %s to %s..." % (filename, basename(out_path)))
     with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
-        conversion = 'fps=10,scale=640:-1:flags=lanczos'
-        palettegen = 'palettegen=max_colors=90:stats_mode=diff'
-        paletteuse = 'paletteuse=dither=bayer'
-        check_call(['ffmpeg', '-y',
-                    '-loglevel', '31',
+        check_call([*cmd,
                     '-i', path,
                     '-vf', conversion + ',' + palettegen,
                     palette.name])
 
-        check_call(['ffmpeg', '-y',
-                    '-loglevel', '31',
+        check_call([*cmd,
                     '-i', path, '-i', palette.name,
                     '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
                     out_path])
