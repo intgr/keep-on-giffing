@@ -1,0 +1,14 @@
+# Generated files
+*.pyc
+*.pyo
+__pycache__
+*.log
+
+# Editor tmp files
+*~
+*.swp
+
+# Misc
+venv
+_local
+.DS_Store
