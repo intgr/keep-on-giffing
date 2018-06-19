@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import sys
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize
 from subprocess import check_call
@@ -31,15 +32,7 @@ def pretty_size(value):
     return '%.*f%s' % (2 - places, unit_value, unit)
 
 
-preset = {
-    'start': 0.0,
-    'length': 10.0,
-    'fps': 20,
-    'scale': 640,
-    'colors': 256,
-    'palette_diff': True,
-    'dither': 'sierra2_4a',
-}
+preset = {}
 
 
 def convert_inner(path):
@@ -114,17 +107,50 @@ def convert(path):
         logging.error("Error converting %s", path, exc_info=True)
 
 
+def optional(type):
+    def convert(value):
+        if value in ('max', 'off'):
+            return None
+        else:
+            return type(value)
+    return convert
+
+
+# Argument parsing. Keep this together with main()
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('-s', '--start', default=0,
+                    help='start time, offset in seconds')
+parser.add_argument('-l', '--length', default='10', type=optional(str),
+                    help='length of output in seconds. Pass "max" to disable.')
+parser.add_argument('-f', '--fps', default=20, type=optional(float),
+                    help='frames per second. Pass "max" to disable')
+parser.add_argument('-p', '--scale', default=500, type=optional(int),
+                    help='maximum dimensions of output. Pass "max" to disable. '
+                         'Aspect ratio is always kept and will never be upscaled.')
+parser.add_argument('-c', '--colors', default=128, type=int,
+                    help='maximum colors in palette')
+parser.add_argument('--no-palette-diff', default=True, dest='palette_diff', action='store_false',
+                    help='generate palette based on differences only')
+parser.add_argument('--dither', default='sierra2_4a',
+                    help='dithering algorithm: none, bayer, floyd_steinberg, sierra2, sierra2_4a')
+parser.add_argument('files', metavar='FILE', nargs='+',
+                    help='input filenames')
+
+
 def main():
-    files = sys.argv[1:]
+    global preset
+
+    args = parser.parse_args()
+    preset = vars(args)
 
     parallel = len(os.sched_getaffinity(0))
     with ThreadPoolExecutor(parallel) as executor:
-        results = list(executor.map(convert, files))
+        results = list(executor.map(convert, args.files))
         executor.shutdown()
 
     success = results.count(True)
-    if len(files) > 1:
-        print("Converted %d files (%d skips/failures)" % (success, len(files) - success))
+    if len(args.files) > 1:
+        print("Converted %d files (%d skips/failures)" % (success, len(args.files) - success))
 
     if not success:
         sys.exit(1)
