@@ -139,7 +139,8 @@ parser.add_argument('-c', '--colors', default=128, type=int,
 parser.add_argument('--no-palette-diff', default=True, dest='palette_diff', action='store_false',
                     help='generate palette based on differences only')
 parser.add_argument('--dither', default='sierra2_4a',
-                    help='dithering algorithm: none, bayer, floyd_steinberg, sierra2, sierra2_4a')
+                    choices=('none', 'bayer', 'floyd_steinberg', 'sierra2', 'sierra2_4a'),
+                    help='dithering algorithm')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
 parser.add_argument('--crop-left',   default=0, type=float, help='crop percentage from left side')
