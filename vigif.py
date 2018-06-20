@@ -165,7 +165,7 @@ def main():
     if len(args.files) > 1:
         print("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
 
-    if outputs:
+    if outputs and args.play:
         print("")
         try:
             check_call(['mpv', '--loop-file', '--', *outputs])
