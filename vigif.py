@@ -10,10 +10,11 @@ http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html
 import logging
 import math
 import os
+import shlex
 import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from concurrent.futures import ThreadPoolExecutor
-from os.path import basename, splitext, isfile, exists, getsize
+from os.path import basename, splitext, isfile, exists, getsize, expanduser
 from subprocess import check_call, CalledProcessError
 from tempfile import NamedTemporaryFile
 
@@ -164,6 +165,12 @@ def main():
 
     if len(args.files) > 1:
         print("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
+
+    # Create this file to enable command log
+    logfile = expanduser('~/.vigif.log')
+    if outputs and exists(logfile):
+        with open(logfile, 'a') as f:
+            f.write(' '.join(shlex.quote(arg) for arg in sys.argv) + '\n')
 
     if outputs and args.play:
         print("")
