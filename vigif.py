@@ -87,8 +87,12 @@ def convert_inner(path):
     # Paletteuse ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
     paletteuse = 'paletteuse'
-    if preset['dither']:
-        paletteuse += '=dither={dither}'.format(**preset)
+    dither = preset['dither']
+    if dither:
+        if dither.startswith('bayer') and dither != 'bayer':
+            paletteuse += '=dither=bayer:bayer_scale={}'.format(dither[5:])
+        else:
+            paletteuse += '=dither={dither}'.format(**preset)
 
     print("Converting %s to %s..." % (filename, basename(out_path)))
     with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
@@ -140,7 +144,8 @@ parser.add_argument('-c', '--colors', default=128, type=int,
 parser.add_argument('--no-palette-diff', default=True, dest='palette_diff', action='store_false',
                     help='generate palette based on differences only')
 parser.add_argument('--dither', default='sierra2_4a',
-                    choices=('none', 'bayer', 'floyd_steinberg', 'sierra2', 'sierra2_4a'),
+                    choices=('none', 'floyd_steinberg', 'sierra2', 'sierra2_4a',
+                             'bayer', 'bayer1', 'bayer2', 'bayer3', 'bayer4', 'bayer5'),
                     help='dithering algorithm')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
