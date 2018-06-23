@@ -119,13 +119,13 @@ def convert(path):
         return None
 
 
-def optional(type):
-    def convert(value):
+def optional(argtype):
+    def convert_arg(value):
         if value in ('max', 'off'):
             return None
         else:
-            return type(value)
-    return convert
+            return argtype(value)
+    return convert_arg
 
 
 # Argument parsing. Keep this together with main()
