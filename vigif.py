@@ -149,10 +149,10 @@ parser.add_argument('--dither', default='sierra2_4a',
                     help='dithering algorithm')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
-parser.add_argument('--crop-left',   default=0, type=float, help='crop percentage from left side')
-parser.add_argument('--crop-right',  default=0, type=float, help='crop percentage from right side')
-parser.add_argument('--crop-top',    default=0, type=float, help='crop percentage from top')
-parser.add_argument('--crop-bottom', default=0, type=float, help='crop percentage from bottom')
+parser.add_argument('--crop-left',   '--left',   default=0, type=float, help='crop percentage from left side')
+parser.add_argument('--crop-right',  '--right',  default=0, type=float, help='crop percentage from right side')
+parser.add_argument('--crop-top',    '--top',    default=0, type=float, help='crop percentage from top')
+parser.add_argument('--crop-bottom', '--bottom', default=0, type=float, help='crop percentage from bottom')
 parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
 
