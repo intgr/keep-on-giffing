@@ -100,12 +100,19 @@ def convert_inner(path):
     if preset['ppdenoise']:
         # https://ffmpeg.org/ffmpeg-filters.html#pp
         # The defaults are too aggressive, causing annoying artifacts. 1|1|1 seems to work well
-        conversion.append('pp=tmpnoise|1|1|1')
+        conversion.append('pp=tmpnoise|{0}|{0}|{0}'.format(preset['ppdenoise']))
 
     if preset['atadenoise']:
         # https://ffmpeg.org/ffmpeg-filters.html#toc-atadenoise
         # The defaults are quite good, attempting to "hand-tune" usually makes it worse
         conversion.append('atadenoise')
+        if preset['atadenoise'] == 1:
+            conversion.append('atadenoise')
+        else:
+            # Multiply the defaults: https://ffmpeg.org/ffmpeg-filters.html#atadenoise
+            defaults = 0.02, 0.04, 0.02, 0.04, 0.02, 0.04
+            args = [str(x * preset['denoise']) for x in defaults]
+            conversion.append('atadenoise=' + ':'.join(args))
 
     # There's also owdenoise but it's extremely slow and not very good
 
@@ -185,9 +192,9 @@ parser.add_argument('--dither', default='sierra2_4a',
                     choices=('none', 'floyd_steinberg', 'sierra2', 'sierra2_4a',
                              'bayer', 'bayer1', 'bayer2', 'bayer3', 'bayer4', 'bayer5'),
                     help='dithering algorithm')
-parser.add_argument('--ppdenoise', default=False, action='store_true',
+parser.add_argument('--ppdenoise', default=0, nargs='?', type=float, action='store', const=1,
                     help='reduce noise using lipostproc tmpnoise filter. Works well with --dither=bayer')
-parser.add_argument('--atadenoise', default=False, action='store_true',
+parser.add_argument('--atadenoise', default=0, nargs='?', type=float, action='store', const=1,
                     help='reduce noise using FFmpeg atadenoise filter. Works well with sierra (default) dithering')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
