@@ -19,6 +19,9 @@ from subprocess import check_call, CalledProcessError
 from tempfile import NamedTemporaryFile
 
 
+log = logging.getLogger('vigif')
+
+
 def pretty_size(value):
     """Convert a number of bytes into a human-readable string, with 4 significant digits.
     Output is 2...5 characters. Values >= 1000 always produce output in form: x.xxxU, xx.xxU, xxxU, xxxxU.
@@ -41,17 +44,18 @@ def convert_inner(path):
     out_path = splitext(filename)[0] + '.gif'
 
     if not exists(path):
-        print("Does not exist: %s" % path)
+        log.error("Does not exist: %s" % path)
         return
 
     if path.endswith('.gif') or not isfile(path):
-        print("Skipping: %s" % filename)
+        log.warning("Skipping gif: %s" % filename)
         return
 
     if exists(out_path):
-        print("WARN: Overwriting %s" % out_path)
+        log.warning("WARN: Overwriting %s" % out_path)
 
-    cmd = 'ffmpeg', '-y', '-loglevel', '31'
+    # FFmpeg loglevel 24 = warning, 16 = error
+    cmd = 'ffmpeg', '-y', '-loglevel', ('24' if preset['verbosity'] >= 0 else '16')
 
     # Cut ####
     if preset['start']:
@@ -94,7 +98,7 @@ def convert_inner(path):
         else:
             paletteuse += '=dither={dither}'.format(**preset)
 
-    print("Converting %s to %s..." % (filename, basename(out_path)))
+    log.info("Converting %s to %s..." % (filename, basename(out_path)))
     with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
         check_call([*cmd,
                     '-i', path,
@@ -106,7 +110,7 @@ def convert_inner(path):
                     '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
                     out_path])
 
-    print("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
+    log.info("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
     return out_path
 
 
@@ -155,6 +159,8 @@ parser.add_argument('--crop-top',    '--top',    default=0, type=float, help='cr
 parser.add_argument('--crop-bottom', '--bottom', default=0, type=float, help='crop percentage from bottom')
 parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
+parser.add_argument('-q', '--quiet', dest='verbosity', default=0, action='store_const', const=-1,
+                    help='silence information messages')
 
 
 def main():
@@ -163,13 +169,20 @@ def main():
     args = parser.parse_args()
     preset = vars(args)
 
+    if args.verbosity <= -1:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
+
+    logging.basicConfig(level=level, format='%(message)s')
+
     parallel = len(os.sched_getaffinity(0))
     with ThreadPoolExecutor(parallel) as executor:
         outputs = [f for f in executor.map(convert, args.files) if f is not None]
         executor.shutdown()
 
     if len(args.files) > 1:
-        print("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
+        log.info("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
 
     # Create this file to enable command log
     logfile = expanduser('~/.vigif.log')
@@ -178,11 +191,12 @@ def main():
             f.write(' '.join(shlex.quote(arg) for arg in sys.argv) + '\n')
 
     if outputs and args.play:
-        print("")
+        log.info("")
         try:
             check_call(['mpv', '--loop-file', '--', *outputs])
         except CalledProcessError as err:
-            print("Error playing: %s" % err)
+            log.error("Error playing: %s" % err)
+            sys.exit(2)
 
     if not outputs:
         # Unsuccessful
