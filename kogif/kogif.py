@@ -117,13 +117,13 @@ def convert_inner(path):
 
     # Paletteuse ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
-    paletteuse = 'paletteuse'
+    paletteuse = 'paletteuse=diff_mode=rectangle'
     dither = preset['dither']
     if dither:
         if dither.startswith('bayer') and dither != 'bayer':
-            paletteuse += '=dither=bayer:bayer_scale={}'.format(dither[5:])
+            paletteuse += ':dither=bayer:bayer_scale={}'.format(dither[5:])
         else:
-            paletteuse += '=dither={dither}'.format(**preset)
+            paletteuse += ':dither={dither}'.format(**preset)
 
     log.info("Converting %s to %s..." % (filename, basename(out_path)))
     filtergraph = ';'.join((
