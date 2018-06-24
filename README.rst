@@ -20,6 +20,8 @@ At its most basic, kogif simply takes video files as command line arguments and 
     Converting big_buck_bunny_trailer_480p_logo.webm to big_buck_bunny_trailer_480p_logo.gif...
     Completed big_buck_bunny_trailer_480p_logo.gif (5.92MB)
 
+.. image:: https://raw.githubusercontent.com/intgr/static/master/keep-on-giffing/big_buck_bunny_trailer.gif
+
 Since the GIF format has poor compression, kogif applies some *default* restrictions already:
 
 * Clip length is 10 seconds. (To override use ``--length=max``)
@@ -28,13 +30,15 @@ Since the GIF format has poor compression, kogif applies some *default* restrict
 * Output can have only 256 unique colors (due to limitations of the GIF file format).
 * GIF does not support audio.
 
-It Often takes some trial and error to get everything right; use the ``--play`` to see the result immediately when
+It often takes some trial and error to get everything right; use ``--play`` to see the result immediately after
 conversion is finished. (Requires the ``mpv`` program)
 
 To cut out certain part of the video, note the time codes in your video player and use ``--start`` and ``--length``
 arguments. These accept seconds or HH:MM:SS.nnn syntax::
 
     keep-on-giffing big_buck_bunny_trailer_480p_logo.webm --play --start=0:14.2 --length=3.4
+
+.. image:: https://raw.githubusercontent.com/intgr/static/master/keep-on-giffing/big_buck_bunny_clip.gif
 
 Optimization
 ````````````
@@ -53,6 +57,10 @@ With that we have::
 
     keep-on-giffing big_buck_bunny_trailer_480p_logo.webm -p -s0:14.2 -l3.4 --dither bayer4 --ppdenoise
 
+Which reduces the size from 4 MB to just 1.42 MB!
+
+.. image:: https://raw.githubusercontent.com/intgr/static/master/keep-on-giffing/big_buck_bunny_optimized.gif
+
 Additional tuning
 `````````````````
 Keep on Giffing also allows you to crop out a portion of the original video using the ``--crop-left``, ``--crop-right``,
@@ -65,13 +73,25 @@ All together::
     keep-on-giffing big_buck_bunny_trailer_480p_logo.webm -p -s19.9 -l4 --dither bayer4 --play \
         --crop-top 25 --crop-bottom 25 --slower 40
 
+.. image:: https://raw.githubusercontent.com/intgr/static/master/keep-on-giffing/big_buck_bunny_crop.gif
+
+For the curious, the generated FFmpeg command is::
+
+    ffmpeg -y -loglevel 24 -ss 19.9 -t 4 -i big_buck_bunny_trailer_480p_logo.webm -filter_complex \
+        'setpts=1.4*PTS,fps=20,crop=in_w*1.0:in_h*0.5:in_w*0.0:in_h*0.25,scale=min(iw\,500):min(ih\,500):\
+        force_original_aspect_ratio=decrease:flags=lanczos,split[tmp1][tmp2];[tmp1]palettegen=max_colors=256:\
+        reserve_transparent=off:stats_mode=diff[pal];[tmp2][pal]paletteuse=dither=bayer:bayer_scale=4' \
+        big_buck_bunny_trailer_480p_logo.gif
+
 That's it!
 
 
-Requirements
+Installation
 ============
 
-Most Linux installations will already have the following:
+Gif it a chance!
+
+Most Linux installations will already have the following requirements:
 
 * Python 3.5 or newer
 * FFmpeg
