@@ -94,6 +94,18 @@ def convert_inner(path):
                           'force_original_aspect_ratio=decrease:flags=lanczos'
                           .format(**preset))
 
+    if preset['ppdenoise']:
+        # https://ffmpeg.org/ffmpeg-filters.html#pp
+        # The defaults are too aggressive, causing annoying artifacts. 1|1|1 seems to work well
+        conversion.append('pp=tmpnoise|1|1|1')
+
+    if preset['atadenoise']:
+        # https://ffmpeg.org/ffmpeg-filters.html#toc-atadenoise
+        # The defaults are quite good, attempting to "hand-tune" usually makes it worse
+        conversion.append('atadenoise')
+
+    # There's also owdenoise but it's extremely slow and not very good
+
     # Palettegen ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
     palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**preset)
@@ -144,6 +156,13 @@ def optional(argtype):
     return convert_arg
 
 
+def tuple_arg(argtype, maxargs):
+    def convert_arg(value):
+        value = value.split(',', maxargs + 1)
+        return tuple(map(argtype, value))
+    return convert_arg
+
+
 # Argument parsing. Keep this together with main()
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-s', '--start', default=0,
@@ -163,6 +182,10 @@ parser.add_argument('--dither', default='sierra2_4a',
                     choices=('none', 'floyd_steinberg', 'sierra2', 'sierra2_4a',
                              'bayer', 'bayer1', 'bayer2', 'bayer3', 'bayer4', 'bayer5'),
                     help='dithering algorithm')
+parser.add_argument('--ppdenoise', default=False, action='store_true',
+                    help='reduce noise using lipostproc tmpnoise filter. Works well with --dither=bayer')
+parser.add_argument('--atadenoise', default=False, action='store_true',
+                    help='reduce noise using FFmpeg atadenoise filter. Works well with sierra (default) dithering')
 parser.add_argument('-p', '--play', default=False, action='store_true',
                     help='play files after conversion')
 parser.add_argument('--crop-left',   '--left',   default=0, type=float, help='crop percentage from left side')
