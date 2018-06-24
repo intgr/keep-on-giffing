@@ -173,9 +173,9 @@ parser.add_argument('-f', '--fps', default=20, type=optional(float),
                     help='frames per second. Pass "max" to disable')
 parser.add_argument('-d', '--scale', default=500, type=optional(int),
                     help='maximum dimensions of output. Pass "max" to disable. '
-                         'Aspect ratio is always kept and will never be upscaled.')
-parser.add_argument('-c', '--colors', default=128, type=int,
-                    help='maximum colors in palette')
+                         'Aspect ratio is kept and video is never upscaled.')
+parser.add_argument('-c', '--colors', default=256, type=int,
+                    help='maximum unique colors in palette')
 parser.add_argument('--no-palette-diff', default=True, dest='palette_diff', action='store_false',
                     help='generate palette based on differences only')
 parser.add_argument('--dither', default='sierra2_4a',
