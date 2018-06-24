@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 """
-See:
-https://superuser.com/a/556031
-http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html
+Helpful posts and articles:
+* https://superuser.com/a/556031
+* http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html
+* https://superuser.com/a/1275521/18382
+* https://stackoverflow.com/a/34338901/177663
 
 * The giftool that keeps on giffing!
 * Keep calm and gif on!
@@ -16,7 +18,6 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
 from subprocess import CalledProcessError, check_call
-from tempfile import NamedTemporaryFile
 
 
 log = logging.getLogger('vigif')
@@ -93,9 +94,6 @@ def convert_inner(path):
                           'force_original_aspect_ratio=decrease:flags=lanczos'
                           .format(**preset))
 
-    # 'copy' is a dummy filter that does nothing.
-    conversion = ','.join(conversion) if conversion else 'copy'
-
     # Palettegen ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
     palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**preset)
@@ -113,18 +111,16 @@ def convert_inner(path):
             paletteuse += '=dither={dither}'.format(**preset)
 
     log.info("Converting %s to %s..." % (filename, basename(out_path)))
-    with NamedTemporaryFile(prefix='pal_', suffix='.png') as palette:
-        # Generate palette
-        call_command([*cmd,
-                      '-i', path,
-                      '-vf', conversion + ',' + palettegen,
-                      palette.name])
+    filtergraph = ';'.join((
+        # Perform conversion and split stream into [tmp1], [tmp2]
+        ','.join(conversion + ['split']) + '[tmp1][tmp2]',
+        # Feed [tmp1] into palettegen and store palette in [pal]
+        '[tmp1]' + palettegen + '[pal]',
+        # Use palette [pal] and [tmp2] to generate the final gif
+        '[tmp2][pal]' + paletteuse
+    ))
 
-        # Use the palette to create a gif
-        call_command([*cmd,
-                      '-i', path, '-i', palette.name,
-                      '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
-                      out_path])
+    call_command([*cmd, '-i', path, '-filter_complex', filtergraph, out_path])
 
     log.info("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
     return out_path
