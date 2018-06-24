@@ -76,6 +76,9 @@ def convert_inner(path):
     # Conversion ####
     conversion = []
 
+    if preset.keys() & {'slower', 'faster'}:
+        ratio = 1 + (preset['slower'] if 'slower' in preset else -preset['faster'])/100
+        conversion.append('setpts={}*PTS'.format(ratio))
     if preset['fps']:
         conversion.append('fps={fps}'.format(**preset))
     if preset.keys() & {'crop_left', 'crop_right', 'crop_top', 'crop_bottom'}:
@@ -169,6 +172,8 @@ parser.add_argument('--crop-left',   '--left',   default=0, type=float, help='cr
 parser.add_argument('--crop-right',  '--right',  default=0, type=float, help='crop percentage from right side')
 parser.add_argument('--crop-top',    '--top',    default=0, type=float, help='crop percentage from top')
 parser.add_argument('--crop-bottom', '--bottom', default=0, type=float, help='crop percentage from bottom')
+parser.add_argument('--slower', default=0, type=float, help='make viedeo slower by percent')
+parser.add_argument('--faster', default=0, type=float, help='make video faster by percent')
 parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
 parser.add_argument('-q', '--quiet', dest='verbosity', default=0, action='store_const', const=-1,
