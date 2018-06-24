@@ -76,12 +76,12 @@ def convert_inner(path):
     # Conversion ####
     conversion = []
 
-    if preset.keys() & {'slower', 'faster'}:
+    if preset['slower'] or preset['faster']:
         ratio = 1 + (preset['slower'] if 'slower' in preset else -preset['faster'])/100
         conversion.append('setpts={}*PTS'.format(ratio))
     if preset['fps']:
         conversion.append('fps={fps}'.format(**preset))
-    if preset.keys() & {'crop_left', 'crop_right', 'crop_top', 'crop_bottom'}:
+    if preset['crop_left'] or preset['crop_right'] or preset['crop_top'] or preset['crop_bottom']:
         conversion.append('crop=in_w*{}:in_h*{}:in_w*{}:in_h*{}'
                           .format(1 - (preset['crop_left'] + preset['crop_right'])/100,
                                   1 - (preset['crop_top'] + preset['crop_bottom'])/100,
@@ -89,11 +89,12 @@ def convert_inner(path):
                                   preset['crop_top']/100))
     if preset['scale']:
         # Doc: https://trac.ffmpeg.org/wiki/Scaling
-        conversion.append("scale='min(iw,{scale})':'min(ih,{scale})':"
-                          "force_original_aspect_ratio=decrease:flags=lanczos"
+        conversion.append('scale=min(iw\\,{scale}):min(ih\\,{scale}):'
+                          'force_original_aspect_ratio=decrease:flags=lanczos'
                           .format(**preset))
 
-    conversion = ','.join(conversion)
+    # 'copy' is a dummy filter that does nothing.
+    conversion = ','.join(conversion) if conversion else 'copy'
 
     # Palettegen ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
@@ -112,7 +113,7 @@ def convert_inner(path):
             paletteuse += '=dither={dither}'.format(**preset)
 
     log.info("Converting %s to %s..." % (filename, basename(out_path)))
-    with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
+    with NamedTemporaryFile(prefix='pal_', suffix='.png') as palette:
         # Generate palette
         call_command([*cmd,
                       '-i', path,
