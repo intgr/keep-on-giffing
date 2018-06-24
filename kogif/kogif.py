@@ -1,13 +1,16 @@
 #!/usr/bin/python3
-"""
+"""The gif-tool that keeps on giffing!
+
+Keep on Giffing is a wrapper around FFmpeg for converting video clips from any format to optimized `.gif` files.
+FFmpeg has excellent support for outputting optimized GIF files (optimal palette generation, dithering, scaling,
+cropping, denoising, etc) but those features are very difficult to use. Keep on Giffing to the rescue, it has a simple
+command line syntax and many features for optimizing GIF files.
+
 Helpful posts and articles:
 * https://superuser.com/a/556031
 * http://blog.pkh.me/p/21-high-quality-gif-with-ffmpeg.html
 * https://superuser.com/a/1275521/18382
 * https://stackoverflow.com/a/34338901/177663
-
-* The giftool that keeps on giffing!
-* Keep calm and gif on!
 """
 import logging
 import math
@@ -20,7 +23,7 @@ from os.path import basename, splitext, isfile, exists, getsize, expanduser
 from subprocess import CalledProcessError, check_call
 
 
-log = logging.getLogger('vigif')
+log = logging.getLogger('kogif')
 
 
 def pretty_size(value):
@@ -226,7 +229,7 @@ def main():
         log.info("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
 
     # Create this file to enable command log
-    logfile = expanduser('~/.vigif.log')
+    logfile = expanduser('~/.keep-on-giffing.log')
     if outputs and exists(logfile):
         with open(logfile, 'a') as f:
             f.write(escape_shell_command(sys.argv) + '\n')
