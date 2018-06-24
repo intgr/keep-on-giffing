@@ -15,7 +15,7 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
-from subprocess import check_call, CalledProcessError
+from subprocess import CalledProcessError, check_call
 from tempfile import NamedTemporaryFile
 
 
@@ -34,6 +34,16 @@ def pretty_size(value):
     unit_value = value / (1024.0 ** exp)    # value in the relevant units
     places = int(math.log(unit_value, 10))  # number of digits before decimal point
     return '%.*f%s' % (2 - places, unit_value, unit)
+
+
+def escape_shell_command(cmd_args: list):
+    """Escape a shell command (list of strings). This is ONLY used for logging/debugging."""
+    return ' '.join(shlex.quote(arg) for arg in cmd_args)
+
+
+def call_command(cmd_args: list):
+    log.debug("Running: %s", escape_shell_command(cmd_args))
+    return check_call(cmd_args)
 
 
 preset = {}
@@ -100,15 +110,17 @@ def convert_inner(path):
 
     log.info("Converting %s to %s..." % (filename, basename(out_path)))
     with NamedTemporaryFile(prefix='pal', suffix='.png') as palette:
-        check_call([*cmd,
-                    '-i', path,
-                    '-vf', conversion + ',' + palettegen,
-                    palette.name])
+        # Generate palette
+        call_command([*cmd,
+                      '-i', path,
+                      '-vf', conversion + ',' + palettegen,
+                      palette.name])
 
-        check_call([*cmd,
-                    '-i', path, '-i', palette.name,
-                    '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
-                    out_path])
+        # Use the palette to create a gif
+        call_command([*cmd,
+                      '-i', path, '-i', palette.name,
+                      '-filter_complex', conversion + '[x];[x][1:v]' + paletteuse,
+                      out_path])
 
     log.info("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
     return out_path
@@ -161,6 +173,8 @@ parser.add_argument('files', metavar='FILE', nargs='+',
                     help='input filenames')
 parser.add_argument('-q', '--quiet', dest='verbosity', default=0, action='store_const', const=-1,
                     help='silence information messages')
+parser.add_argument('-v', '--verbose', dest='verbosity', default=0, action='count',
+                    help='more verbose output')
 
 
 def main():
@@ -171,8 +185,10 @@ def main():
 
     if args.verbosity <= -1:
         level = logging.WARNING
-    else:
+    elif args.verbosity == 0:
         level = logging.INFO
+    else:
+        level = logging.DEBUG
 
     logging.basicConfig(level=level, format='%(message)s')
 
@@ -188,12 +204,12 @@ def main():
     logfile = expanduser('~/.vigif.log')
     if outputs and exists(logfile):
         with open(logfile, 'a') as f:
-            f.write(' '.join(shlex.quote(arg) for arg in sys.argv) + '\n')
+            f.write(escape_shell_command(sys.argv) + '\n')
 
     if outputs and args.play:
         log.info("")
         try:
-            check_call(['mpv', '--loop-file', '--', *outputs])
+            call_command(['mpv', '--loop-file', '--', *outputs])
         except CalledProcessError as err:
             log.error("Error playing: %s" % err)
             sys.exit(2)
