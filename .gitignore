@@ -3,6 +3,7 @@
 *.pyo
 __pycache__
 *.log
+*.egg-info
 
 # Editor tmp files
 *~
@@ -12,3 +13,13 @@ __pycache__
 venv
 _local
 .DS_Store
+
+# PyCharm/IntelliJ IDEA
+# Look here for inspiration: https://www.gitignore.io/api/pycharm (most aren't relevant for us)
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/jsLibraryMappings.xml
+.idea/dataSources*
+.idea/shelf
+.idea/dictionaries
+.idea/usage.statistics.xml
