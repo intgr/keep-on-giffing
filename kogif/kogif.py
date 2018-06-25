@@ -17,7 +17,7 @@ import math
 import os
 import shlex
 import sys
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
 from subprocess import CalledProcessError, check_call
@@ -60,59 +60,57 @@ def cpu_count():
         return os.cpu_count()
 
 
-preset = {}
-
-
-def convert_inner(path):
+def convert_inner(args: Namespace, path: str):
+    opts = vars(args)
     filename = basename(path)
     out_path = splitext(filename)[0] + '.gif'
 
     if not exists(path):
         log.error("Does not exist: %s" % path)
-        return
+        return None
 
     if path.endswith('.gif') or not isfile(path):
         log.warning("Skipping gif: %s" % filename)
-        return
+        return None
 
     if exists(out_path):
         log.warning("WARN: Overwriting %s" % out_path)
 
     # FFmpeg loglevel 24 = warning, 16 = error
-    cmd = 'ffmpeg', '-y', '-loglevel', ('24' if preset['verbosity'] >= 0 else '16')
+    cmd = 'ffmpeg', '-y', '-loglevel', ('24' if args.verbosity >= 0 else '16')
 
     # Cut ####
-    if preset['start']:
-        cmd += '-ss', str(preset['start'])
-    if preset['length']:
-        cmd += '-t', str(preset['length'])
+    if args.start:
+        cmd += '-ss', str(args.start)
+    if args.length:
+        cmd += '-t', str(args.length)
 
     # Conversion ####
     conversion = []
 
-    if preset['slower'] or preset['faster']:
-        ratio = 1 + (preset['slower'] if 'slower' in preset else -preset['faster'])/100
+    if args.slower or args.faster:
+        ratio = 1 + (args.slower if 'slower' in opts else -args.faster) / 100
         conversion.append('setpts={}*PTS'.format(ratio))
-    if preset['fps']:
-        conversion.append('fps={fps}'.format(**preset))
-    if preset['crop_left'] or preset['crop_right'] or preset['crop_top'] or preset['crop_bottom']:
+    if args.fps:
+        conversion.append('fps={fps}'.format(**opts))
+    if args.crop_left or args.crop_right or args.crop_top or args.crop_bottom:
         conversion.append('crop=in_w*{}:in_h*{}:in_w*{}:in_h*{}'
-                          .format(1 - (preset['crop_left'] + preset['crop_right'])/100,
-                                  1 - (preset['crop_top'] + preset['crop_bottom'])/100,
-                                  preset['crop_left']/100,
-                                  preset['crop_top']/100))
-    if preset['scale']:
+                          .format(1 - (args.crop_left + args.crop_right) / 100,
+                                  1 - (args.crop_top + args.crop_bottom) / 100,
+                                  args.crop_left / 100,
+                                  args.crop_top / 100))
+    if args.scale:
         # Doc: https://trac.ffmpeg.org/wiki/Scaling
         conversion.append('scale=min(iw\\,{scale}):min(ih\\,{scale}):'
                           'force_original_aspect_ratio=decrease:flags=lanczos'
-                          .format(**preset))
+                          .format(**opts))
 
-    if preset['ppdenoise']:
+    if args.ppdenoise:
         # https://ffmpeg.org/ffmpeg-filters.html#pp
         # The defaults are too aggressive, causing annoying artifacts. 1|1|1 seems to work well
         conversion.append('pp=tmpnoise|1|1|1')
 
-    if preset['atadenoise']:
+    if args.atadenoise:
         # https://ffmpeg.org/ffmpeg-filters.html#toc-atadenoise
         # The defaults are quite good, attempting to "hand-tune" usually makes it worse
         conversion.append('atadenoise')
@@ -121,19 +119,18 @@ def convert_inner(path):
 
     # Palettegen ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
-    palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**preset)
-    if preset['palette_diff']:
+    palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**opts)
+    if args.palette_diff:
         palettegen += ':stats_mode=diff'
 
     # Paletteuse ####
     # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
     paletteuse = 'paletteuse'
-    dither = preset['dither']
-    if dither:
-        if dither.startswith('bayer') and dither != 'bayer':
-            paletteuse += '=dither=bayer:bayer_scale={}'.format(dither[5:])
+    if args.dither:
+        if args.dither.startswith('bayer') and args.dither != 'bayer':
+            paletteuse += '=dither=bayer:bayer_scale={}'.format(args.dither[5:])
         else:
-            paletteuse += '=dither={dither}'.format(**preset)
+            paletteuse += '=dither={dither}'.format(**opts)
 
     log.info("Converting %s to %s..." % (filename, basename(out_path)))
     filtergraph = ';'.join((
@@ -151,10 +148,11 @@ def convert_inner(path):
     return out_path
 
 
-def convert(path):
+def convert_wrapper(args: Namespace, path: str):
+    """Error-handling-reporting wrapper for multithreaded execution."""
     # noinspection PyBroadException
     try:
-        return convert_inner(path)
+        return convert_inner(args, path)
     except Exception:
         logging.error("Error converting %s", path, exc_info=True)
         return None
@@ -215,11 +213,21 @@ parser.add_argument('-v', '--verbose', dest='verbosity', default=0, action='coun
                     help='more verbose output')
 
 
-def main():
-    global preset
+def run_convert(args: Namespace):
+    if len(args.files) == 1:
+        outputs = [convert_inner(args, args.files[0])]
+    else:
+        # Use parallelization and wrapper
+        with ThreadPoolExecutor(cpu_count()) as executor:
+            outputs = executor.map(lambda f: convert_wrapper(args, f), args.files)
+            executor.shutdown()
 
+    # Filter out None returns -- failed conversions
+    return [f for f in outputs if f]
+
+
+def main():
     args = parser.parse_args()
-    preset = vars(args)
 
     if args.verbosity <= -1:
         level = logging.WARNING
@@ -227,12 +235,9 @@ def main():
         level = logging.INFO
     else:
         level = logging.DEBUG
-
     logging.basicConfig(level=level, format='%(message)s')
 
-    with ThreadPoolExecutor(cpu_count()) as executor:
-        outputs = [f for f in executor.map(convert, args.files) if f is not None]
-        executor.shutdown()
+    outputs = run_convert(args)
 
     if len(args.files) > 1:
         log.info("Converted %d files (%d skips/failures)" % (len(outputs), len(args.files) - len(outputs)))
