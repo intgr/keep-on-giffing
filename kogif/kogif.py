@@ -20,7 +20,7 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
-from subprocess import CalledProcessError, check_call
+from subprocess import CalledProcessError, check_call, Popen, PIPE
 from typing import List
 
 log = logging.getLogger('kogif')
@@ -64,21 +64,8 @@ def play_command(filenames: List[str]) -> List[str]:
     return ['mpv', '--loop-file', '--hr-seek=yes', '--'] + filenames
 
 
-def convert_inner(args: Namespace, path: str):
+def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
     opts = vars(args)
-    filename = basename(path)
-    out_path = splitext(filename)[0] + '.gif'
-
-    if not exists(path):
-        log.error("Does not exist: %s" % path)
-        return None
-
-    if path.endswith('.gif') or not isfile(path):
-        log.warning("Skipping gif: %s" % filename)
-        return None
-
-    if exists(out_path):
-        log.warning("WARN: Overwriting %s" % out_path)
 
     # FFmpeg loglevel 24 = warning, 16 = error
     cmd = 'ffmpeg', '-y', '-loglevel', ('24' if args.verbosity >= 0 else '16')
@@ -136,7 +123,6 @@ def convert_inner(args: Namespace, path: str):
         else:
             paletteuse += '=dither={dither}'.format(**opts)
 
-    log.info("Converting %s to %s..." % (filename, basename(out_path)))
     filtergraph = ';'.join((
         # Perform conversion and split stream into [tmp1], [tmp2]
         ','.join(conversion + ['split']) + '[tmp1][tmp2]',
@@ -146,7 +132,59 @@ def convert_inner(args: Namespace, path: str):
         '[tmp2][pal]' + paletteuse
     ))
 
-    call_command([*cmd, '-i', path, '-filter_complex', filtergraph, out_path])
+    return [*cmd, '-i', path, '-filter_complex', filtergraph, '-f', 'gif', out_path]
+
+
+def run_play_pipeline(cmd: List[str], out_path: str):
+    """Perform conversion and playback as a pipeline: start playback before the whole conversion is even finished."""
+
+    tee_cmd = ['tee', '--output-error=warn-nopipe', '--', out_path]
+    play_cmd = play_command(['-'])
+    log.debug("Running: %s | %s | %s",
+              escape_shell_command(cmd), escape_shell_command(tee_cmd), escape_shell_command(play_cmd))
+
+    # XXX PyCharm bug:
+    # noinspection PyListCreation
+    pipe = []
+    pipe.append(Popen(cmd, stdout=PIPE))
+    pipe.append(Popen(tee_cmd, stdin=pipe[-1].stdout, stdout=PIPE))
+    pipe.append(Popen(play_cmd, stdin=pipe[-1].stdout))
+
+    # Close our copy of file descriptors, otherwise we deadlock
+    pipe[0].stdout.close()
+    pipe[1].stdout.close()
+
+    # Wait for them all to quit...
+    for proc in pipe:
+        ret = proc.wait()
+        # Report error, except that we don't care about mpv failing
+        if ret != 0 and proc != pipe[2]:
+            raise CalledProcessError(ret, proc.args)
+
+
+def convert_inner(args: Namespace, path: str):
+    filename = basename(path)
+    out_path = splitext(filename)[0] + '.gif'
+
+    if not exists(path):
+        log.error("Does not exist: %s" % path)
+        return None
+
+    if path.endswith('.gif') or not isfile(path):
+        log.warning("Skipping gif: %s" % filename)
+        return None
+
+    if exists(out_path):
+        log.warning("WARN: Overwriting %s" % out_path)
+
+    log.info("Converting %s to %s..." % (filename, basename(out_path)))
+
+    if args.play == 'pipe':
+        cmd = ffmpeg_command(args, path, '-')
+        run_play_pipeline(cmd, out_path)
+    else:
+        cmd = ffmpeg_command(args, path, out_path)
+        check_call(cmd)
 
     log.info("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
     return out_path
@@ -202,7 +240,7 @@ parser.add_argument('--ppdenoise', default=False, action='store_true',
 parser.add_argument('--atadenoise', default=False, action='store_true',
                     help='reduce noise using FFmpeg atadenoise filter. Works well with sierra (default) dithering')
 parser.add_argument('-p', '--play', default=False, action='store_true',
-                    help='play files after conversion')
+                    help='play resulting gif files using mpv')
 parser.add_argument('--crop-left',   '--left',   default=0, type=float, help='crop percentage from left side')
 parser.add_argument('--crop-right',  '--right',  default=0, type=float, help='crop percentage from right side')
 parser.add_argument('--crop-top',    '--top',    default=0, type=float, help='crop percentage from top')
@@ -241,6 +279,10 @@ def main():
         level = logging.DEBUG
     logging.basicConfig(level=level, format='%(message)s')
 
+    if args.play:
+        # If there's just one output file, we can pipeline playback. Only supported with GNU tee command (on Linux).
+        args.play = 'pipe' if len(args.files) == 1 and sys.platform == 'linux' else 'after'
+
     outputs = run_convert(args)
 
     if len(args.files) > 1:
@@ -252,7 +294,7 @@ def main():
         with open(logfile, 'a') as f:
             f.write(escape_shell_command(sys.argv) + '\n')
 
-    if outputs and args.play:
+    if outputs and args.play == 'after':
         log.info("")
         try:
             call_command(play_command(outputs))
