@@ -93,7 +93,7 @@ Installation
 
 .. pull-quote:: Gif it a chance!
 
-Most Linux installations will already have the following requirements:
+Tested on Linux and macOS. Most Linux installations will already have the following requirements:
 
 * Python 3.5 or newer
 * FFmpeg

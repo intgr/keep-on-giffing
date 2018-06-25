@@ -50,6 +50,16 @@ def call_command(cmd_args: list):
     return check_call(cmd_args)
 
 
+def cpu_count():
+    """Returns the number of available CPUs on the machine."""
+
+    if hasattr(os, 'sched_getaffinity'):
+        # On Linux, sched_getaffinity returns *usable* CPUs in the current container.
+        return len(os.sched_getaffinity(0))
+    else:
+        return os.cpu_count()
+
+
 preset = {}
 
 
@@ -220,8 +230,7 @@ def main():
 
     logging.basicConfig(level=level, format='%(message)s')
 
-    parallel = len(os.sched_getaffinity(0))
-    with ThreadPoolExecutor(parallel) as executor:
+    with ThreadPoolExecutor(cpu_count()) as executor:
         outputs = [f for f in executor.map(convert, args.files) if f is not None]
         executor.shutdown()
 
