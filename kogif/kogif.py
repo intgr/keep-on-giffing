@@ -21,7 +21,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
 from subprocess import CalledProcessError, check_call
-
+from typing import List
 
 log = logging.getLogger('kogif')
 
@@ -58,6 +58,10 @@ def cpu_count():
         return len(os.sched_getaffinity(0))
     else:
         return os.cpu_count()
+
+
+def play_command(filenames: List[str]) -> List[str]:
+    return ['mpv', '--loop-file', '--hr-seek=yes', '--'] + filenames
 
 
 def convert_inner(args: Namespace, path: str):
@@ -251,7 +255,7 @@ def main():
     if outputs and args.play:
         log.info("")
         try:
-            call_command(['mpv', '--loop-file', '--', *outputs])
+            call_command(play_command(outputs))
         except CalledProcessError as err:
             log.error("Error playing: %s" % err)
             sys.exit(2)
