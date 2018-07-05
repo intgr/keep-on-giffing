@@ -20,6 +20,7 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from concurrent.futures import ThreadPoolExecutor
 from os.path import basename, splitext, isfile, exists, getsize, expanduser
+from shutil import which
 from subprocess import CalledProcessError, check_call, Popen, PIPE
 from typing import List
 
@@ -67,8 +68,17 @@ def play_command(filenames: List[str]) -> List[str]:
 def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
     opts = vars(args)
 
+    if which('ffmpeg'):
+        bin = 'ffmpeg'
+    elif which('avconv'):
+        # So some crazy Ubuntu versions don't ship 'ffmpeg' but we can use the 'avconv' (libav) fork instead.
+        bin = 'avconv'
+    else:
+        # The command will probably fail but use 'ffmpeg' for the error message.
+        bin = 'ffmpeg'
+
     # FFmpeg loglevel 24 = warning, 16 = error
-    cmd = 'ffmpeg', '-y', '-loglevel', ('24' if args.verbosity >= 0 else '16')
+    cmd = bin, '-y', '-loglevel', ('24' if args.verbosity >= 0 else '16')
 
     # Cut ####
     if args.start:
@@ -83,7 +93,7 @@ def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
         ratio = 1 + (args.slower if 'slower' in opts else -args.faster) / 100
         conversion.append('setpts={}*PTS'.format(ratio))
     if args.fps:
-        conversion.append('fps={fps}'.format(**opts))
+        conversion.append('fps=fps={fps}'.format(**opts))
     if args.crop_left or args.crop_right or args.crop_top or args.crop_bottom:
         conversion.append('crop=in_w*{}:in_h*{}:in_w*{}:in_h*{}'
                           .format(1 - (args.crop_left + args.crop_right) / 100,
@@ -91,15 +101,18 @@ def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
                                   args.crop_left / 100,
                                   args.crop_top / 100))
     if args.scale:
+        additional = ':force_original_aspect_ratio=decrease' if bin == 'ffmpeg' else ''
         # Doc: https://trac.ffmpeg.org/wiki/Scaling
-        conversion.append('scale=min(iw\\,{scale}):min(ih\\,{scale}):'
-                          'force_original_aspect_ratio=decrease:flags=lanczos'
-                          .format(**opts))
+        conversion.append('scale=w=min(iw\\,{scale}):h=min(ih\\,{scale}):flags=lanczos'.format(**opts)
+                          + additional)
 
     if args.ppdenoise:
         # https://ffmpeg.org/ffmpeg-filters.html#pp
         # The defaults are too aggressive, causing annoying artifacts. 1|1|1 seems to work well
-        conversion.append('pp=tmpnoise|1|1|1')
+        if bin == 'ffmpeg':
+            conversion.append('pp=tmpnoise|1|1|1')
+        else:
+            log.warning('--ppdenoise is not supported by %s', bin)
 
     if args.atadenoise:
         # https://ffmpeg.org/ffmpeg-filters.html#toc-atadenoise

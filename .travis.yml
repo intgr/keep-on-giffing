@@ -10,8 +10,8 @@ services:
 env:
   - PYTHON_TAG=3.7-slim-stretch APT_PKG=ffmpeg
   - PYTHON_TAG=3.6-slim-stretch APT_PKG=ffmpeg
-#  - PYTHON_TAG=3.5-slim-jessie APT_PKG=avconv-tools   # TODO FIXME
-#  - PYTHON_TAG=3.4-slim-jessie APT_PKG=avconv-tools   # TODO FIXME
+  - PYTHON_TAG=3.5-slim-jessie APT_PKG=libav-tools
+  - PYTHON_TAG=3.4-slim-jessie APT_PKG=libav-tools
 script:
   - docker build . --build-arg=PYTHON_TAG=$PYTHON_TAG --build-arg=APT_PKG=$APT_PKG
 
