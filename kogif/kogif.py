@@ -268,8 +268,8 @@ def run_convert(args: Namespace):
     return [f for f in outputs if f]
 
 
-def main():
-    args = parser.parse_args()
+def main(args=None):
+    args = parser.parse_args(args)
 
     if args.verbosity <= -1:
         level = logging.WARNING
