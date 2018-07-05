@@ -1,6 +1,27 @@
 #!/usr/bin/env python3
 
+import pip
 from setuptools import setup
+
+
+if tuple(map(int, pip.__version__.split('.'))) >= (10, 0, 0):
+    # noinspection PyProtectedMember
+    from pip._internal.download import PipSession
+    # noinspection PyProtectedMember
+    from pip._internal.req import parse_requirements
+else:
+    # noinspection PyUnresolvedReferences
+    from pip.download import PipSession
+    # noinspection PyUnresolvedReferences
+    from pip.req import parse_requirements
+
+
+install_requires_g = parse_requirements('requirements.txt', session=PipSession())
+install_requires = [str(ir.req) for ir in install_requires_g]
+
+dev_requires_g = parse_requirements('requirements-dev.txt', session=PipSession())
+dev_requires = [str(ir.req) for ir in dev_requires_g]
+
 
 setup(
     name='keep-on-giffing',
@@ -23,7 +44,6 @@ setup(
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
         'License :: OSI Approved :: MIT License',
-        # Until we have a test suite we're conservative about Python version compatibility claims
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Topic :: Multimedia :: Graphics :: Graphics Conversion',
@@ -36,5 +56,9 @@ setup(
         'kogif = kogif.kogif:main',
         'keep-on-giffing = kogif.kogif:main',
     ]},
-    # test_suite='tests',  # TODO!
+    install_requires=install_requires,
+    extras_require={
+        'dev': dev_requires,
+    },
+    test_suite='tests',
 )
