@@ -8,6 +8,9 @@ FFmpeg has excellent support for outputting optimized GIF files (optimal palette
 cropping, denoising, etc) but those features are very difficult to use directly. *Keep on Giffing* to the rescue, it has
 a simple command line syntax and many features for working with GIF files.
 
+.. image:: https://travis-ci.org/intgr/keep-on-giffing.svg?branch=master
+   :alt: Travis CI
+   :target: http://travis-ci.org/intgr/keep-on-giffing
 
 .. contents:: Table of contents
     :backlinks: none

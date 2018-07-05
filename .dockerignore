@@ -1,0 +1,19 @@
+# Generated files
+*.pyc
+*.pyo
+__pycache__
+*.log
+*.egg-info
+.pytest_cache
+
+# Editor tmp files
+*~
+*.swp
+
+# Misc
+venv
+_local
+.DS_Store
+.idea
+.git
+Dockerfile
