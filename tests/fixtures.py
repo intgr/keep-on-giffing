@@ -23,7 +23,7 @@ def cache_dir() -> Path:
     """Creates cache directory if necessary and returns its path."""
 
     if not CACHE_DIR.exists():
-        os.mkdir(CACHE_DIR)
+        os.mkdir(str(CACHE_DIR))
     return CACHE_DIR
 
 
@@ -34,7 +34,7 @@ def test_video(cache_dir) -> str:
     path = cache_dir / BBB_FILENAME
     if not path.exists():
         log.warning("Downloading sample file to %s", path)
-        urlretrieve(BBB_URL, path)
+        urlretrieve(BBB_URL, str(path))
 
     return str(path)
 
@@ -53,7 +53,7 @@ def chdir_tmp(tmpdir):
     """Change to a temporary directory and change back later."""
     old_dir = os.getcwd()
     try:
-        os.chdir(tmpdir)
+        os.chdir(str(tmpdir))
         yield tmpdir
     finally:
         os.chdir(old_dir)
