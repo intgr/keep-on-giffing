@@ -145,7 +145,8 @@ def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
         '[tmp2][pal]' + paletteuse
     ))
 
-    return [*cmd, '-i', path, '-filter_complex', filtergraph, '-f', 'gif', out_path]
+    cmd += '-i', path, '-filter_complex', filtergraph, '-f', 'gif', out_path
+    return list(cmd)
 
 
 def run_play_pipeline(cmd: List[str], out_path: str):
