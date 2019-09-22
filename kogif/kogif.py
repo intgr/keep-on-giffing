@@ -108,31 +108,50 @@ def ffmpeg_command(args: Namespace, path: str, out_path: str) -> List[str]:
 
     # There's also owdenoise but it's extremely slow and not very good
 
-    # Palettegen ####
-    # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
-    palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**opts)
-    if args.palette_diff:
-        palettegen += ':stats_mode=diff'
+    cmd += '-i', path
 
-    # Paletteuse ####
-    # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
-    paletteuse = 'paletteuse'
-    if args.dither:
-        if args.dither.startswith('bayer') and args.dither != 'bayer':
-            paletteuse += '=dither=bayer:bayer_scale={}'.format(args.dither[5:])
-        else:
-            paletteuse += '=dither={dither}'.format(**opts)
+    # GIF ####
+    if args.format == 'gif':
+        cmd += ('-f', 'gif')
+        # Palettegen ####
+        # Doc: https://ffmpeg.org/ffmpeg-filters.html#palettegen
+        palettegen = 'palettegen=max_colors={colors}:reserve_transparent=off'.format(**opts)
+        if args.palette_diff:
+            palettegen += ':stats_mode=diff'
 
-    filtergraph = ';'.join((
-        # Perform conversion and split stream into [tmp1], [tmp2]
-        ','.join(conversion + ['split']) + '[tmp1][tmp2]',
-        # Feed [tmp1] into palettegen and store palette in [pal]
-        '[tmp1]' + palettegen + '[pal]',
-        # Use palette [pal] and [tmp2] to generate the final gif
-        '[tmp2][pal]' + paletteuse
-    ))
+        # Paletteuse ####
+        # Doc: https://ffmpeg.org/ffmpeg-filters.html#paletteuse
+        paletteuse = 'paletteuse'
+        if args.dither:
+            if args.dither.startswith('bayer') and args.dither != 'bayer':
+                paletteuse += '=dither=bayer:bayer_scale={}'.format(args.dither[5:])
+            else:
+                paletteuse += '=dither={dither}'.format(**opts)
 
-    return [*cmd, '-i', path, '-filter_complex', filtergraph, '-f', 'gif', out_path]
+        filtergraph = ';'.join((
+            # Perform conversion and split stream into [tmp1], [tmp2]
+            ','.join(conversion + ['split']) + '[tmp1][tmp2]',
+            # Feed [tmp1] into palettegen and store palette in [pal]
+            '[tmp1]' + palettegen + '[pal]',
+            # Use palette [pal] and [tmp2] to generate the final gif
+            '[tmp2][pal]' + paletteuse
+        ))
+
+    # MP4/baseline ####
+    else:
+        # TODO: Support stripping audio
+        # TODO: For non-gif formats, --fps default should be 'max'? What about scale?
+        # TODO: It would be nice to print errors when gif-specific options were used?
+        cmd += ('-f', 'mp4')
+        filtergraph = ','.join(conversion)
+        if args.format == 'baseline':
+            # H.264 Baseline 3.0 profile (for example when sending to Telgram)
+            cmd += ('-profile:v', 'baseline', '-level', '3.0')
+            # XXX 'telegram' format should also limit scale to 640?
+
+    cmd += '-filter_complex', filtergraph
+    cmd += out_path,
+    return list(cmd)
 
 
 def run_play_pipeline(cmd: List[str], out_path: str):
@@ -162,9 +181,20 @@ def run_play_pipeline(cmd: List[str], out_path: str):
             raise CalledProcessError(ret, proc.args)
 
 
+def make_outpath(args: Namespace, path: str):
+    out_path = splitext(path)[0]
+    if args.format == 'gif':
+        out_path += '.gif'
+    elif args.format in ('mp4', 'baseline'):
+        out_path += '.mp4'
+    else:
+        raise AssertionError('Unknown format %s' % args.format)
+    return out_path
+
+
 def convert_inner(args: Namespace, path: str):
     filename = basename(path)
-    out_path = splitext(filename)[0] + '.gif'
+    out_path = make_outpath(args, filename)
 
     if not exists(path):
         log.error("Does not exist: %s" % path)
@@ -220,6 +250,9 @@ def tuple_arg(argtype, maxargs):
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-s', '--start', default=0,
                     help='start time, offset in seconds')
+parser.add_argument('-t', '--format', default='gif',
+                    choices=('gif', 'mp4', 'baseline'),
+                    help='output file format (type)')
 parser.add_argument('-l', '--length', default='10', type=optional(str),
                     help='length of output in seconds. Pass "max" to disable.')
 parser.add_argument('-f', '--fps', default=20, type=optional(float),
@@ -280,8 +313,14 @@ def main(args=None):
     logging.basicConfig(level=level, format='%(message)s')
 
     if args.play:
-        # If there's just one output file, we can pipeline playback. Only supported with GNU tee command (on Linux).
-        args.play = 'pipe' if len(args.files) == 1 and sys.platform == 'linux' else 'after'
+        # Pipe playback only supported if:
+        # * There's just one output file
+        # * On Linux (requires the GNU 'tee' command)
+        # * Output format is not mp4 (mp4 muxer does not support streaming)
+        if len(args.files) == 1 and sys.platform == 'linux' and args.format == 'gif':
+            args.play = 'pipe'
+        else:
+            args.play = 'after'
 
     outputs = run_convert(args)
 
