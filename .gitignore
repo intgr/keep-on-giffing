@@ -5,6 +5,7 @@ __pycache__
 *.log
 *.egg-info
 .pytest_cache
+Pipfile.lock
 
 # Editor tmp files
 *~
@@ -14,6 +15,10 @@ __pycache__
 venv
 _local
 .DS_Store
+
+# Outputted when testing
+*.gif
+*.mp4
 
 # PyCharm/IntelliJ IDEA
 # Look here for inspiration: https://www.gitignore.io/api/pycharm (most aren't relevant for us)
