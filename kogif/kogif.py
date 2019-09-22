@@ -184,7 +184,7 @@ def convert_inner(args: Namespace, path: str):
         run_play_pipeline(cmd, out_path)
     else:
         cmd = ffmpeg_command(args, path, out_path)
-        check_call(cmd)
+        call_command(cmd)
 
     log.info("Completed %s (%sB)" % (basename(out_path), pretty_size(getsize(out_path))))
     return out_path
